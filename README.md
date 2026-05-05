@@ -1,0 +1,327 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Weather Monitor</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+  <div class="container">
+
+    <!-- Header -->
+    <div class="header">
+      <div class="app-label">⬡ Weather Monitor</div>
+      <div class="header-right">
+        <div class="date-label" id="dateLabel"></div>
+        <button class="mode-toggle" onclick="toggleDarkMode()" id="modeBtn">🌙 Dark</button>
+      </div>
+    </div>
+
+    <!-- Search -->
+    <div class="search-bar">
+      <div class="search-wrapper">
+        <span class="search-icon">🔍</span>
+        <input type="text" id="cityInput" placeholder="Search city..." />
+      </div>
+      <button onclick="getWeather()">Search</button>
+    </div>
+
+    <!-- Error -->
+    <div id="errorMsg" class="error-msg"></div>
+
+    <!-- Loading -->
+    <div id="loadingState" class="loading-state">
+      <span class="loading-dot"></span>
+      <span class="loading-dot"></span>
+      <span class="loading-dot"></span>
+    </div>
+
+    <!-- Result -->
+    <div id="result">
+
+      <div class="main-card">
+        <div class="card-top">
+          <div>
+            <div class="city-label">Current Weather</div>
+            <div id="cityName"></div>
+            <div id="localTime" class="local-time"></div>
+          </div>
+          <div id="weatherIcon"></div>
+        </div>
+
+        <div class="divider"></div>
+
+        <div class="temp-row">
+          <div id="temp"></div>
+          <div class="temp-meta">
+            <div id="condition"></div>
+            <div id="highLow" class="high-low"></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="stats-row">
+        <div class="stat-card">
+          <div class="stat-icon">💧</div>
+          <div class="stat-label">Humidity</div>
+          <div class="stat-value" id="humidity">-</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-icon">💨</div>
+          <div class="stat-label">Wind</div>
+          <div class="stat-value" id="wind">-</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-icon">🌡️</div>
+          <div class="stat-label">Feels Like</div>
+          <div class="stat-value" id="feelsLike">-</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-icon">👁️</div>
+          <div class="stat-label">Visibility</div>
+          <div class="stat-value" id="visibility">-</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-icon">🌅</div>
+          <div class="stat-label">Sunrise</div>
+          <div class="stat-value" id="sunrise">-</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-icon">🌇</div>
+          <div class="stat-label">Sunset</div>
+          <div class="stat-value" id="sunset">-</div>
+        </div>
+      </div>
+
+      <div class="result-footer">
+        <span id="lastUpdated"></span>
+        <span class="powered-by">OpenWeatherMap</span>
+      </div>
+
+    </div>
+  </div>
+
+  <script src="script.js"></script>
+</body>
+</html>
+const apiKey = "d34f5a026a72aaa28489f4d3126af98d";
+
+const weatherIcons = {
+  Clear: "☀️", Clouds: "⛅", Rain: "🌧️",
+  Drizzle: "🌦️", Thunderstorm: "⛈️", Snow: "❄️",
+  Mist: "🌫️", Fog: "🌫️", Haze: "🌫️"
+};
+
+const weatherClasses = {
+  Clear: "clear", Clouds: "clouds", Rain: "rain",
+  Drizzle: "drizzle", Thunderstorm: "thunderstorm",
+  Snow: "snow", Mist: "mist", Fog: "mist", Haze: "mist"
+};
+
+function setWeatherBackground(main) {
+  document.body.className = document.body.className
+    .split(" ")
+    .filter(c => !c.startsWith("weather-"))
+    .join(" ");
+  document.body.classList.add(`weather-${weatherClasses[main] || "clear"}`);
+}
+
+function formatTime(unixTime, offset) {
+  const date = new Date((unixTime + offset) * 1000);
+  const hrs = date.getUTCHours();
+  const mins = String(date.getUTCMinutes()).padStart(2, "0");
+  const ampm = hrs >= 12 ? "PM" : "AM";
+  return `${hrs % 12 || 12}:${mins} ${ampm}`;
+}
+
+function setDate() {
+  const now = new Date();
+  const options = { weekday: "long", month: "long", day: "numeric" };
+  document.getElementById("dateLabel").textContent = now.toLocaleDateString("en-US", options);
+}
+
+function showError(msg) {
+  const el = document.getElementById("errorMsg");
+  el.textContent = msg;
+  el.style.display = "block";
+  setTimeout(() => { el.style.display = "none"; }, 3000);
+}
+
+function showLoading(show) {
+  document.getElementById("loadingState").style.display = show ? "flex" : "none";
+}
+
+function toggleDarkMode() {
+  document.body.classList.toggle("dark-mode");
+  const isDark = document.body.classList.contains("dark-mode");
+  document.getElementById("modeBtn").textContent = isDark ? "☀️ Light" : "🌙 Dark";
+  localStorage.setItem("darkMode", isDark);
+}
+
+function getWeather() {
+  const city = document.getElementById("cityInput").value.trim();
+  if (!city) return;
+
+  document.getElementById("result").classList.remove("visible");
+  document.getElementById("errorMsg").style.display = "none";
+  showLoading(true);
+
+  fetch(`https://api.openweathermap.org/data/2.5/weather?q=${city}&appid=${apiKey}&units=metric`)
+    .then(res => res.json())
+    .then(data => {
+      showLoading(false);
+
+      if (data.cod !== 200) {
+        showError("City not found. Please try again.");
+        return;
+      }
+
+      const main = data.weather[0].main;
+      const offset = data.timezone;
+
+      document.getElementById("cityName").textContent = data.name + ", " + data.sys.country;
+      document.getElementById("localTime").textContent = "Local time: " + formatTime(Math.floor(Date.now() / 1000), offset);
+      document.getElementById("temp").textContent = Math.round(data.main.temp) + "°";
+      document.getElementById("condition").textContent = data.weather[0].description;
+      document.getElementById("weatherIcon").textContent = weatherIcons[main] || "🌤️";
+      document.getElementById("highLow").textContent = `H: ${Math.round(data.main.temp_max)}°  L: ${Math.round(data.main.temp_min)}°`;
+      document.getElementById("humidity").textContent = data.main.humidity + "%";
+      document.getElementById("wind").textContent = Math.round(data.wind.speed) + " m/s";
+      document.getElementById("feelsLike").textContent = Math.round(data.main.feels_like) + "°C";
+      document.getElementById("visibility").textContent = (data.visibility / 1000).toFixed(1) + " km";
+      document.getElementById("sunrise").textContent = formatTime(data.sys.sunrise, offset);
+      document.getElementById("sunset").textContent = formatTime(data.sys.sunset, offset);
+      document.getElementById("lastUpdated").textContent = "Updated just now";
+
+      setWeatherBackground(main);
+      document.getElementById("result").classList.add("visible");
+    })
+    .catch(() => {
+      showLoading(false);
+      showError("Something went wrong. Check your connection.");
+    });
+}
+
+document.getElementById("cityInput").addEventListener("keydown", function (e) {
+  if (e.key === "Enter") getWeather();
+});
+
+// Remember dark mode preference
+if (localStorage.getItem("darkMode") === "true") {
+  document.body.classList.add("dark-mode");
+  document.getElementById("modeBtn").textContent = "☀️ Light";
+}
+
+setDate();
+
+const apiKey = "d34f5a026a72aaa28489f4d3126af98d";
+
+const weatherIcons = {
+  Clear: "☀️", Clouds: "⛅", Rain: "🌧️",
+  Drizzle: "🌦️", Thunderstorm: "⛈️", Snow: "❄️",
+  Mist: "🌫️", Fog: "🌫️", Haze: "🌫️"
+};
+
+const weatherClasses = {
+  Clear: "clear", Clouds: "clouds", Rain: "rain",
+  Drizzle: "drizzle", Thunderstorm: "thunderstorm",
+  Snow: "snow", Mist: "mist", Fog: "mist", Haze: "mist"
+};
+
+function setWeatherBackground(main) {
+  document.body.className = document.body.className
+    .split(" ")
+    .filter(c => !c.startsWith("weather-"))
+    .join(" ");
+  document.body.classList.add(`weather-${weatherClasses[main] || "clear"}`);
+}
+
+function formatTime(unixTime, offset) {
+  const date = new Date((unixTime + offset) * 1000);
+  const hrs = date.getUTCHours();
+  const mins = String(date.getUTCMinutes()).padStart(2, "0");
+  const ampm = hrs >= 12 ? "PM" : "AM";
+  return `${hrs % 12 || 12}:${mins} ${ampm}`;
+}
+
+function setDate() {
+  const now = new Date();
+  const options = { weekday: "long", month: "long", day: "numeric" };
+  document.getElementById("dateLabel").textContent = now.toLocaleDateString("en-US", options);
+}
+
+function showError(msg) {
+  const el = document.getElementById("errorMsg");
+  el.textContent = msg;
+  el.style.display = "block";
+  setTimeout(() => { el.style.display = "none"; }, 3000);
+}
+
+function showLoading(show) {
+  document.getElementById("loadingState").style.display = show ? "flex" : "none";
+}
+
+function toggleDarkMode() {
+  document.body.classList.toggle("dark-mode");
+  const isDark = document.body.classList.contains("dark-mode");
+  document.getElementById("modeBtn").textContent = isDark ? "☀️ Light" : "🌙 Dark";
+  localStorage.setItem("darkMode", isDark);
+}
+
+function getWeather() {
+  const city = document.getElementById("cityInput").value.trim();
+  if (!city) return;
+
+  document.getElementById("result").classList.remove("visible");
+  document.getElementById("errorMsg").style.display = "none";
+  showLoading(true);
+
+  fetch(`https://api.openweathermap.org/data/2.5/weather?q=${city}&appid=${apiKey}&units=metric`)
+    .then(res => res.json())
+    .then(data => {
+      showLoading(false);
+
+      if (data.cod !== 200) {
+        showError("City not found. Please try again.");
+        return;
+      }
+
+      const main = data.weather[0].main;
+      const offset = data.timezone;
+
+      document.getElementById("cityName").textContent = data.name + ", " + data.sys.country;
+      document.getElementById("localTime").textContent = "Local time: " + formatTime(Math.floor(Date.now() / 1000), offset);
+      document.getElementById("temp").textContent = Math.round(data.main.temp) + "°";
+      document.getElementById("condition").textContent = data.weather[0].description;
+      document.getElementById("weatherIcon").textContent = weatherIcons[main] || "🌤️";
+      document.getElementById("highLow").textContent = `H: ${Math.round(data.main.temp_max)}°  L: ${Math.round(data.main.temp_min)}°`;
+      document.getElementById("humidity").textContent = data.main.humidity + "%";
+      document.getElementById("wind").textContent = Math.round(data.wind.speed) + " m/s";
+      document.getElementById("feelsLike").textContent = Math.round(data.main.feels_like) + "°C";
+      document.getElementById("visibility").textContent = (data.visibility / 1000).toFixed(1) + " km";
+      document.getElementById("sunrise").textContent = formatTime(data.sys.sunrise, offset);
+      document.getElementById("sunset").textContent = formatTime(data.sys.sunset, offset);
+      document.getElementById("lastUpdated").textContent = "Updated just now";
+
+      setWeatherBackground(main);
+      document.getElementById("result").classList.add("visible");
+    })
+    .catch(() => {
+      showLoading(false);
+      showError("Something went wrong. Check your connection.");
+    });
+}
+
+document.getElementById("cityInput").addEventListener("keydown", function (e) {
+  if (e.key === "Enter") getWeather();
+});
+
+// Remember dark mode preference
+if (localStorage.getItem("darkMode") === "true") {
+  document.body.classList.add("dark-mode");
+  document.getElementById("modeBtn").textContent = "☀️ Light";
+}
+
+setDate();
